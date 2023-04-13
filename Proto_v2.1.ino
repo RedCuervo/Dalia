@@ -140,7 +140,7 @@ void funcionRiego(int tiempo) {
   }
 }
 
-//otra funcion mas, confiemos que funcione
+//Funcion verifica el valor del sensor y permite el riego
 bool siHay(int valorAgua) {
   if (valorAgua > 350) {
     hayAgua = true;
