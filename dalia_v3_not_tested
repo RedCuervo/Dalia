@@ -1,0 +1,212 @@
+//librerias
+#include <LedControl.h>
+#include <SoftwareSerial.h>
+#include <RTClib.h>
+//pins
+const int ledPin = 13;
+const int sensorPin = A0;
+LedControl lc = LedControl(12, 11, 10, 1);
+const int bombaPin = 5;
+SoftwareSerial bluetooth(6, 7);  // RX, TX
+//variables
+int HistoryValue = 0;
+DateTime now;
+DateTime lastTime;
+RTC_DS3231 rtc;
+int id_Plant = 0;
+String BT_Received = "";
+int Dias = 0;
+int currentValue;
+bool hayAgua;
+String fechaHora;
+DateTime activationHour;
+bool start=false;
+bool riegoinicial=false;
+// Temporizador para contar los días que han pasado
+unsigned long timer = 0;
+const unsigned long interval = 86400000UL; // 1 día en milisegundos
+
+// MatrizLed
+byte smiley[8] = {  // Definir el patrón de la carita feliz
+  0b00000000,
+  0b01100110,
+  0b01100110,
+  0b00000000,
+  0b00000000,
+  0b10011001,
+  0b01100110,
+  0b00000000
+};
+
+byte sadge[8] = {  // Definir el patrón de la carita triste
+  0b00000000,
+  0b00000000,
+  0b01100110,
+  0b00000000,
+  0b00000000,
+  0b00111100,
+  0b01000010,
+  0b00000000
+};
+
+
+void setup() {
+  Dias = 0;
+  pinMode(bombaPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  Serial.begin(9600);
+  rtc.begin();
+  functionLed();
+   if (rtc.lostPower()) {
+    Serial.println("RTC ha perdido la alimentación, se establecerá la hora por defecto");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
+
+  bluetooth.begin(4800);
+  lastTime = rtc.now(); // Inicializar la variable con la fecha y hora actual  
+}
+
+void loop() {
+  sensorAgua();
+  evaluarVolumen();
+  now = rtc.now();
+ fechaHora = now.dayOfTheWeek() + " " + String(now.day()) + "/" + String(now.month()) + "/" + String(now.year()) + " " + String(now.hour()) + ":" + String(now.minute()) + ":" + String(now.second());
+
+
+  if (bluetooth.available()) {
+    BT_Received = bluetooth.readString();
+    id_Plant = atoi(BT_Received.c_str());
+    evaluarHoras(id_Plant);
+    Serial.print("Valor recibido:");
+    Serial.println(id_Plant);
+  }
+  delay(100);
+
+
+
+   // Activar función a las 6:00 PM si corresponde
+  
+    if (siHay(currentValue)) {
+      if (Dias != 0) {
+        inicioRiego();
+      }
+    }
+}
+
+//funcion de la matriz
+void functionLed() {
+  lc.shutdown(0, false);  // Enciende el display
+  lc.setIntensity(0, 2);  // Ajusta el brillo (0-15 posibles)
+  lc.clearDisplay(0);
+}
+
+
+//Funciones sensor de agua
+void sensorAgua() {
+  currentValue = analogRead(sensorPin);
+  HistoryValue = currentValue;
+}
+
+void evaluarVolumen() {
+  if (HistoryValue > 360) {
+    for (int i = 0; i < 8; i++) {
+      lc.setRow(0, i, smiley[i]);
+    }
+    delay(100);
+  } else if (HistoryValue <= 360) {
+    for (int i = 0; i < 8; i++) {
+      lc.setRow(0, i, sadge[i]);
+    }
+    delay(100);
+  }
+}
+
+void inicioRiego (){
+  
+  if(!riegoinicial){
+  if (siHay(currentValue)) {
+    Serial.println("RiegoInicial");
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(bombaPin, HIGH);
+    delay(2000);
+    digitalWrite(bombaPin, LOW);
+    digitalWrite(ledPin, LOW);
+    Serial.println("Se activo en: "+ fechaHora);
+    activationHour= now.hour();
+    }
+    riegoinicial=true;
+  }
+  funcionRiego(Dias,activationHour);
+
+}
+
+void evaluarHoras(int idPlant) {
+  switch (idPlant) {
+    case 1:
+      Dias = 3;
+      riegoinicial=false;
+      Serial.println("Se encendera cada " + String(Dias) + " Dias");
+      break;
+    case 2:
+      Dias = 7;
+      riegoinicial=false;
+      Serial.println("Se encendera cada " + String(Dias) + " Dias");
+      break;
+    case 3:
+      Dias = 7;
+      riegoinicial=false;
+      Serial.println("Se encendera cada " + String(Dias) + " Dias");
+      break;
+    case 4:
+      Dias = 1;
+      riegoinicial=false;
+      Serial.println("Se encendera cada " + String(Dias) + " Dias");
+      break;
+    case 5:
+    if (siHay(currentValue)) {
+    Serial.println("ModoPrueba Activado");
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(bombaPin, HIGH);
+    delay(2000);
+    digitalWrite(bombaPin, LOW);
+    digitalWrite(ledPin, LOW);
+    Serial.println("ModoPrueba Finalizado");
+    Serial.println("Se activo en: "+ fechaHora);
+    }
+    break;
+    case 6:
+    Serial.print(fechaHora);
+    break;
+  }
+}
+
+//funcion riego
+void funcionRiego(int dias, DateTime hora) {
+    // Verificar si han pasado más de X días desde la última vez que se activó la función
+    if (now.hour() == hora.hour() && now.minute() == 0 && now.second() == 0) {
+  if (now.unixtime() - lastTime.unixtime() >= dias * 86400UL) {
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(bombaPin, HIGH);
+    delay(2000);
+    digitalWrite(bombaPin, LOW);
+    digitalWrite(ledPin, LOW);
+    Serial.println("Se recibio:" + String(dias)+"Dias");
+    Serial.println("Se activo en: "+ fechaHora);
+    lastTime = now; // Actualizar la última vez que se activó la función "x"
+  }
+    }
+  // Actualizar el temporizador
+  if (millis() - timer >= interval) {
+    timer = millis();
+    Serial.print("Timer actualizado: OK");
+  }
+}
+//otra funcion mas, confiemos que funcione
+bool siHay(int valorAgua) {
+  if (valorAgua > 350) {
+    hayAgua = true;
+  } else {
+    hayAgua = false;
+  }
+  return hayAgua;
+}
