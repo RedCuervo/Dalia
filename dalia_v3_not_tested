@@ -63,7 +63,7 @@ void setup() {
   }
 
   bluetooth.begin(4800);
-  lastTime = rtc.now(); // Inicializar la variable con la fecha y hora actual  
+    
 }
 
 void loop() {
@@ -82,9 +82,6 @@ void loop() {
   }
   delay(100);
 
-
-
-   // Activar función a las 6:00 PM si corresponde
   
     if (siHay(currentValue)) {
       if (Dias != 0) {
@@ -124,7 +121,6 @@ void evaluarVolumen() {
 void inicioRiego (){
   
   if(!riegoinicial){
-  if (siHay(currentValue)) {
     Serial.println("RiegoInicial");
     digitalWrite(ledPin, HIGH);
     digitalWrite(bombaPin, HIGH);
@@ -133,8 +129,8 @@ void inicioRiego (){
     digitalWrite(ledPin, LOW);
     Serial.println("Se activo en: "+ fechaHora);
     activationHour= now.hour();
-    }
     riegoinicial=true;
+    lastTime = rtc.now();
   }
   funcionRiego(Dias,activationHour);
 
@@ -201,7 +197,7 @@ void funcionRiego(int dias, DateTime hora) {
     Serial.print("Timer actualizado: OK");
   }
 }
-//otra funcion mas, confiemos que funcione
+//funcion bloqueo de riego
 bool siHay(int valorAgua) {
   if (valorAgua > 350) {
     hayAgua = true;
